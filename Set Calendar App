@@ -1,0 +1,217 @@
+import React, { useState } from "react";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable
+} from "react-beautiful-dnd";
+import "./styles.css";
+
+// A list of days for the week
+const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// Preset events to choose from
+const initialPresetEvents = [
+  { id: "1", title: "Workout (1 hr)" },
+  { id: "2", title: "Meeting with Bob" },
+  { id: "3", title: "Groceries" },
+  { id: "4", title: "Dentist Appointment" },
+  { id: "5", title: "Study Session" },
+];
+
+function App() {
+  // State for the side “preset events”
+  const [presetEvents, setPresetEvents] = useState(initialPresetEvents);
+
+  // State for each day's scheduled events
+  // Example structure:
+  // { Monday: [{id:'3', title:'Groceries'}], Tuesday: [] ...}
+  const [weekSchedule, setWeekSchedule] = useState(
+    daysOfWeek.reduce((acc, day) => {
+      acc[day] = [];
+      return acc;
+    }, {})
+  );
+
+  /**
+   * onDragEnd is called when a drag movement finishes (either by dropping
+   *   in a valid drop zone or canceling).
+   */
+  const onDragEnd = (result) => {
+    const { destination, source, draggableId } = result;
+
+    // If there's no valid destination (dropped outside any droppable area)
+    if (!destination) {
+      return;
+    }
+
+    // If the user drags and drops in the same place, do nothing.
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    // If we're dragging from the preset events onto the weekly schedule
+    if (source.droppableId === "PRESET_EVENTS" && destination.droppableId !== "PRESET_EVENTS") {
+      // 1) Find the event in the presetEvents array
+      const draggedEvent = presetEvents.find((event) => event.id === draggableId);
+
+      // 2) Insert that event into the correct day in weekSchedule
+      const dayTarget = destination.droppableId; // e.g. "Monday"
+      const newDayEvents = Array.from(weekSchedule[dayTarget]);
+      newDayEvents.splice(destination.index, 0, draggedEvent); 
+
+      // 3) Update the state
+      setWeekSchedule({
+        ...weekSchedule,
+        [dayTarget]: newDayEvents
+      });
+      return;
+    }
+
+    // If we’re moving events within the same day
+    if (source.droppableId === destination.droppableId) {
+      const day = source.droppableId;
+      const newEvents = Array.from(weekSchedule[day]);
+      // Remove the dragged event from original position
+      const [movedEvent] = newEvents.splice(source.index, 1);
+      // Insert the dragged event at the new position
+      newEvents.splice(destination.index, 0, movedEvent);
+
+      setWeekSchedule({
+        ...weekSchedule,
+        [day]: newEvents
+      });
+      return;
+    }
+
+    // If we’re moving an event from one day to another day
+    if (source.droppableId !== destination.droppableId && source.droppableId !== "PRESET_EVENTS") {
+      const sourceDay = source.droppableId;
+      const destinationDay = destination.droppableId;
+
+      // Remove event from source day
+      const sourceEvents = Array.from(weekSchedule[sourceDay]);
+      const [movedEvent] = sourceEvents.splice(source.index, 1);
+
+      // Add event to destination day
+      const destinationEvents = Array.from(weekSchedule[destinationDay]);
+      destinationEvents.splice(destination.index, 0, movedEvent);
+
+      setWeekSchedule({
+        ...weekSchedule,
+        [sourceDay]: sourceEvents,
+        [destinationDay]: destinationEvents
+      });
+      return;
+    }
+  };
+
+  return (
+    <div className="App" style={{ display: "flex", gap: "2rem", padding: "2rem" }}>
+      <DragDropContext onDragEnd={onDragEnd}>
+        {/* Preset Events Section */}
+        <div style={{ width: "200px", backgroundColor: "#f8f8f8", padding: "1rem" }}>
+          <h3>Preset Events</h3>
+          <Droppable droppableId="PRESET_EVENTS" isDropDisabled={true}>
+            {(provided) => (
+              <div 
+                {...provided.droppableProps} 
+                ref={provided.innerRef}
+                style={{ minHeight: "50px" }}
+              >
+                {presetEvents.map((event, index) => (
+                  <Draggable 
+                    key={event.id} 
+                    draggableId={event.id} 
+                    index={index}
+                  >
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.dragHandleProps}
+                        {...provided.draggableProps}
+                        style={{
+                          userSelect: "none",
+                          padding: "8px",
+                          margin: "0 0 8px 0",
+                          backgroundColor: snapshot.isDragging ? "#ccc" : "#eee",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          ...provided.draggableProps.style
+                        }}
+                      >
+                        {event.title}
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </div>
+
+        {/* Weekly Calendar Section */}
+        <div style={{ flex: 1 }}>
+          <h2>My Week</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1rem" }}>
+            {daysOfWeek.map((day) => (
+              <div 
+                key={day} 
+                style={{ border: "1px solid #ccc", borderRadius: "4px", minHeight: "200px", padding: "0.5rem" }}
+              >
+                <h4>{day}</h4>
+                <Droppable droppableId={day}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      style={{
+                        minHeight: "100px",
+                        backgroundColor: snapshot.isDraggingOver ? "#fafafa" : "white",
+                        padding: "4px",
+                        transition: "background-color 0.2s ease"
+                      }}
+                    >
+                      {weekSchedule[day].map((event, index) => (
+                        <Draggable 
+                          key={event.id} 
+                          draggableId={event.id} 
+                          index={index}
+                        >
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={{
+                                userSelect: "none",
+                                padding: "8px",
+                                margin: "0 0 8px 0",
+                                backgroundColor: snapshot.isDragging ? "#d2f8d2" : "#e2ffe2",
+                                border: "1px solid #ccc",
+                                borderRadius: "4px",
+                                ...provided.draggableProps.style
+                              }}
+                            >
+                              {event.title}
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DragDropContext>
+    </div>
+  );
+}
+
+export default App;
